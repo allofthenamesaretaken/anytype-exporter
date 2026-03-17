@@ -31,7 +31,6 @@ URL.
 This avoids sending unnecessary query parameters and keeps requests aligned
 with the Anytype API specification.
 */
-
 type QueryParams struct {
 	offset *uint
 	limit  *uint
@@ -63,7 +62,6 @@ handled in client/client.go.
 The design keeps this layer simple and focused on building correctly formatted
 requests for the endpoints used by the exporter.
 */
-
 type AnytypeRequest struct {
 	logger         *utils.Logger
 	anytypeBaseUrl string
@@ -81,11 +79,24 @@ The idiomatic way to assign values to the respective fields is with the use of
 the WithOffset and WithLimit methods. The purpose of this is to improve the
 ergonomics of setting *uint type values without having to pass pointers.
 */
-
 func NewQueryParams() *QueryParams {
 	return &QueryParams{}
 }
 
+/*
+ NOTE: AnytypeRequest constructor
+
+Creates a new AnytypeRequest instance using environment-based configuration.
+
+Expected environment variables:
+
+  ANYTYPE_BASE_URL   → base API endpoint (for example https://api.anytype.io)
+  ANYTYPE_API_KEY    → bearer token used for authentication
+  ANYTYPE_VERSION    → API version header required by Anytype
+
+No validation is performed at construction time. It is assumed that the
+environment is correctly configured before the exporter runs.
+*/
 func NewAnytypeRequest(logger *utils.Logger) *AnytypeRequest {
 	return &AnytypeRequest{
 		logger:         logger,
@@ -109,7 +120,6 @@ Example usage:
 This pattern improves readability when constructing optional query parameters
 and keeps pagination logic concise when iterating through API responses.
 */
-
 func (queryParams *QueryParams) WithOffset(offset uint) *QueryParams {
 	queryParams.offset = &offset
 	return queryParams
@@ -143,7 +153,6 @@ Centralizing request construction ensures that all endpoints use the same
 authentication and header configuration while keeping the endpoint-specific
 methods small and readable.
 */
-
 func (clientRequest *AnytypeRequest) get(path string, queryParams *QueryParams) (*http.Request, error) {
 	rawUrl := clientRequest.anytypeBaseUrl + path
 
@@ -197,6 +206,20 @@ func (clientRequest *AnytypeRequest) GetSpaces(queryParams *QueryParams) (*http.
 	return clientRequest.get("/v1/spaces", queryParams)
 }
 
+/*
+ NOTE: Get space endpoint
+
+GetSpace constructs a request for the Anytype endpoint:
+
+  GET /v1/spaces/{space_id}
+
+This endpoint returns a single space with richer metadata than the
+list-spaces response.
+
+For this exporter, the response is used only when additional context about a
+specific space is required. Most workflows rely primarily on the list endpoint
+for discovery.
+*/
 func (clientRequest *AnytypeRequest) GetSpace(spaceId string) (*http.Request, error) {
 	path := fmt.Sprintf("/v1/spaces/%s", spaceId)
 	return clientRequest.get(path, nil)
@@ -218,12 +241,25 @@ For this exporter, these objects are the main source of text content used for
 LLM ingestion. Their markdown bodies, snippets, and names are extracted and
 processed downstream.
 */
-
 func (clientRequest *AnytypeRequest) GetObjects(spaceId string, queryParams *QueryParams) (*http.Request, error) {
 	path := fmt.Sprintf("/v1/spaces/%s/objects", spaceId)
 	return clientRequest.get(path, queryParams)
 }
 
+/*
+ NOTE: Get object endpoint
+
+GetObject constructs a request for the Anytype endpoint:
+
+  GET /v1/spaces/{space_id}/objects/{object_id}
+
+This endpoint returns a single object, which may include a more complete
+representation than the list-objects response.
+
+For this exporter, this endpoint is the preferred source when the most complete
+available textual content (such as full markdown) is required for LLM
+processing.
+*/
 func (clientRequest *AnytypeRequest) GetObject(spaceId string, objectId string) (*http.Request, error) {
 	path := fmt.Sprintf("/v1/spaces/%s/objects/%s", spaceId, objectId)
 	return clientRequest.get(path, nil)

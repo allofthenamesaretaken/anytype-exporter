@@ -136,7 +136,6 @@ This metadata is operational rather than semantic. It is used only for
 API traversal and should not be treated as part of the exported document
 content.
 */
-
 type Pagination struct {
 	Total   int  `json:"total"`
 	Offset  int  `json:"offset"`
@@ -161,7 +160,6 @@ categories during decoding. It is not used to preserve Anytype's full schema
 model and should not be interpreted as a replacement for the richer "type"
 metadata available on objects.
 */
-
 type ObjectType string
 
 const (
@@ -284,7 +282,6 @@ Because reliable reconstruction of icon assets is not possible using the
 data returned by the API alone, icon data is parsed only for schema
 compatibility and is otherwise ignored during export.
 */
-
 // type Icon struct {
 // 	Emoji  string     `json:"emoji,omitempty"`
 // 	Format IconFormat `json:"format"`
@@ -326,7 +323,6 @@ In other words:
 If richer semantic export is needed later, type support can be restored to
 attach schema/category information to exported documents.
 */
-
 // type Type struct {
 // 	Archived   bool       `json:"archived"`
 // 	ID         string     `json:"id"`
@@ -377,7 +373,6 @@ If future use cases require richer structured metadata, property support can
 be added and mapped into frontmatter, JSON metadata, or other downstream
 representations.
 */
-
 // type Property struct {
 // 	Format string `json:"format"`
 // 	ID     string `json:"id"`
