@@ -27,31 +27,101 @@ commented types can be restored and completed as needed.
 /*
  NOTE: Response wrapper
 
-Anytype list endpoints commonly return a result set plus pagination metadata.
+Anytype endpoints commonly return either:
 
-For the purposes of this exporter, these wrappers exist only to support
-iterating through paginated API responses while collecting content-bearing
-objects for downstream processing.
+  - a paginated result set under a top-level "data" field, or
+  - a single resource wrapped in a named top-level field such as "space" or
+    "object"
 
-The pagination fields are preserved because they are required for complete
-traversal of the dataset, even though they are not themselves meaningful
-document content.
+For the purposes of this exporter, these wrappers exist only to match the API
+response shape and support decoding.
+
+List wrappers are used to iterate through paginated responses while collecting
+content-bearing objects for downstream processing.
+
+Single-item wrappers are used to retrieve richer representations of individual
+resources. In particular, full object retrieval may expose more complete
+content and metadata than list responses, even though this exporter only keeps
+the subset it needs for text extraction.
+
+The wrapper fields themselves are operational rather than semantic and should
+not be treated as exported document content.
 */
 
+/*
+ NOTE: Space list response
+
+Some Anytype endpoints return a paginated list of spaces under a top-level
+"data" field together with pagination metadata.
+
+This wrapper is used to enumerate available spaces and support full traversal
+of all spaces accessible to the API key.
+
+List responses provide sufficient information for identifying and labeling
+spaces, but may omit additional metadata available in single space retrieval.
+
+The wrapper exists only to match the API response shape. The contained Space
+objects are used as contextual metadata for associating and organizing
+exported content.
+*/
 type SpacesResponse struct {
 	Data       []Space    `json:"data"`
 	Pagination Pagination `json:"pagination"`
 }
 
+/*
+ NOTE: Single space response
+
+Some Anytype endpoints return a single space wrapped in a top-level "space"
+field rather than inside a paginated "data" array.
+
+The full space response may include additional workspace metadata beyond the
+subset modeled by the Space struct, such as internal workspace IDs used by
+Anytype for home, archive, profile, and related views.
+
+This exporter intentionally retains only the space fields useful for content
+association and basic context. The wrapper exists only to match the API
+response shape.
+*/
 type SpaceResponse struct {
 	Space Space `json:"space"`
 }
 
+/*
+ NOTE: Object list response
+
+Some Anytype endpoints return a paginated list of objects under a top-level
+"data" field together with pagination metadata.
+
+This wrapper is used for space-scoped object discovery and bulk traversal.
+List responses are useful for enumerating candidate objects to export, but
+they may not include the full richness of a dedicated single-object retrieval.
+
+In particular, the exporter should treat list responses as suitable for
+indexing, selection, and lightweight metadata capture, while full object
+retrieval remains the preferred source for complete textual extraction when
+available.
+
+The wrapper itself exists only to match the API response shape.
+*/
 type ObjectsResponse struct {
 	Data       []Object   `json:"data"`
 	Pagination Pagination `json:"pagination"`
 }
 
+/*
+ NOTE: Single object response
+
+Some Anytype endpoints return a single object wrapped in a top-level "object"
+field rather than inside a paginated "data" array.
+
+This wrapper is especially important for full object retrieval, which may
+return a richer and more complete representation than list responses.
+
+For this exporter, the single-object response should be treated as the
+authoritative shape for extracting document content when full text is needed.
+The wrapper itself exists only to match the API response shape.
+*/
 type ObjectResponse struct {
 	Object Object `json:"object"`
 }
@@ -112,13 +182,14 @@ content objects with their originating container. The meaningful fields are:
   - name        → human-readable label
   - description → optional descriptive context
   - network_id  → Anytype network identifier
-  - gateway_url → gateway base used by Anytype for serving related media/files
+  - gateway_url → base gateway URL used by Anytype to serve media and files
+  - object      → broad API discriminator for the returned record kind
 
-This exporter does not attempt to reconstruct full space presentation or UI
-state. Space records are used primarily as contextual metadata for the
-documents scraped from them.
+The Anytype API may expose additional space metadata on full retrieval,
+including workspace-specific IDs and presentation details. This exporter does
+not attempt to reconstruct full space configuration or UI state. Space records
+are used primarily as contextual metadata for the documents scraped from them.
 */
-
 type Space struct {
 	Description string     `json:"description"`
 	GatewayUrl  string     `json:"gateway_url"`
@@ -135,25 +206,33 @@ type Space struct {
 
 This exporter is centered on content-bearing Anytype objects.
 
-The fields retained here are the ones most useful for document extraction
-and LLM ingestion:
+The Anytype API exposes richer object data than this struct models, especially
+on full object retrieval. Depending on the endpoint, object responses may also
+include icons, type information, blocks, details, and structured properties.
+
+This struct intentionally retains only the subset most useful for document
+extraction and LLM ingestion:
 
   - id        → stable object identifier
   - name      → object title, when present
-  - markdown  → primary body content (this field is only present on GetObject
-    response and not GetObjects)
-  - snippet   → short preview text, especially useful for objects that may
-                have little or no explicit title
+  - markdown  → textual body content when returned by the API
+  - snippet   → short preview text, useful for discovery and fallback indexing
   - space_id  → associates the object with its parent space
   - archived  → allows archived content to be filtered if desired
-  - layout    → preserved only as lightweight context about the object's
-                presentation category
+  - layout    → lightweight context about the object's presentation category
+  - object    → broad API discriminator indicating the returned record kind
+
+Important:
+List-object responses and single-object responses should not be assumed to
+have identical field completeness. In particular, full object retrieval is the
+more appropriate source when the exporter needs the most complete available
+textual representation.
 
 This exporter intentionally focuses on textual and contextual data rather
-than full object fidelity. As such, schema metadata, icon metadata, and
-other presentation-oriented fields are not currently exported.
+than full object fidelity. Schema metadata, icon metadata, blocks/details
+beyond the extracted text, and other presentation-oriented fields are not
+currently exported.
 */
-
 type Object struct {
 	Archived bool       `json:"archived"`
 	ID       string     `json:"id"`
@@ -220,7 +299,7 @@ compatibility and is otherwise ignored during export.
 // )
 
 /*
- TODO: Type handling
+ NOTE: Type handling
 
 Anytype objects may include a nested "type" object describing the schema or
 template the object belongs to, such as Page, Note, Bookmark, or Task.
