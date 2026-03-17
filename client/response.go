@@ -39,13 +39,21 @@ document content.
 */
 
 type SpacesResponse struct {
-	Objects    []Space    `json:"data"`
+	Data       []Space    `json:"data"`
 	Pagination Pagination `json:"pagination"`
 }
 
+type SpaceResponse struct {
+	Space Space `json:"space"`
+}
+
 type ObjectsResponse struct {
-	Objects    []Object   `json:"data"`
+	Data       []Object   `json:"data"`
 	Pagination Pagination `json:"pagination"`
+}
+
+type ObjectResponse struct {
+	Object Object `json:"object"`
 }
 
 /*
@@ -132,7 +140,8 @@ and LLM ingestion:
 
   - id        → stable object identifier
   - name      → object title, when present
-  - markdown  → primary body content
+  - markdown  → primary body content (this field is only present on GetObject
+    response and not GetObjects)
   - snippet   → short preview text, especially useful for objects that may
                 have little or no explicit title
   - space_id  → associates the object with its parent space
@@ -146,13 +155,14 @@ other presentation-oriented fields are not currently exported.
 */
 
 type Object struct {
-	Archived bool   `json:"archived"`
-	ID       string `json:"id"`
-	Layout   string `json:"layout"`
-	Markdown string `json:"markdown"`
-	Name     string `json:"name"`
-	Snippet  string `json:"snippet"`
-	SpaceID  string `json:"space_id"`
+	Archived bool       `json:"archived"`
+	ID       string     `json:"id"`
+	Layout   string     `json:"layout"`
+	Markdown string     `json:"markdown"`
+	Name     string     `json:"name"`
+	Object   ObjectType `json:"object"`
+	Snippet  string     `json:"snippet"`
+	SpaceID  string     `json:"space_id"`
 
 	// Type       *Type      `json:"type"`
 	// Properties []Property `json:"properties"`

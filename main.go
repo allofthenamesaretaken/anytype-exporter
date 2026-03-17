@@ -31,20 +31,63 @@ func main() {
 		os.Exit(1)
 	}
 
-	// targetSpace := os.Getenv("ANYTYPE_TARGET_SPACE")
-
 	// client init
 	anytypeClient := client.NewAnytypeClient(logInstance)
 
 	// client request spaces
-	var spaces *client.SpacesResponse
+	var spacesResponse *client.SpacesResponse
 	var params = client.NewQueryParams().WithOffset(0).WithLimit(1)
-	spaces, err = anytypeClient.RequestSpaces(params)
+	spacesResponse, err = anytypeClient.RequestSpaces(params)
 	if err != nil {
 		os.Exit(1)
 	}
 
-	fmt.Printf("spaces: %v\n", *spaces)
+	fmt.Printf("spaces: %v\n", *spacesResponse)
+
+	var targetSpaceId string
+	targetSpace := os.Getenv("ANYTYPE_TARGET_SPACE")
+	targetSpaceExists := false
+	for _, v := range spacesResponse.Data {
+		if v.Name == targetSpace {
+			targetSpaceExists = true
+			targetSpaceId = v.ID
+		}
+	}
+
+	var spaceResponse *client.SpaceResponse
+	spaceResponse, err = anytypeClient.RequestSpace(targetSpaceId)
+	if err != nil {
+		os.Exit(1)
+	}
+
+	fmt.Printf("target space: %v\n", spaceResponse)
+
+	var objectsResponse *client.ObjectsResponse
+	if targetSpaceExists {
+		objectsResponse, err = anytypeClient.RequestObjects(targetSpaceId, nil)
+		if err != nil {
+			os.Exit(1)
+		}
+	} else {
+		msg := fmt.Sprintf("Target space %s does not exist", targetSpace)
+		logInstance.Error(msg, err)
+		os.Exit(1)
+	}
+
+	var objectIds []string
+	for _, v := range objectsResponse.Data {
+		objectIds = append(objectIds, v.ID)
+	}
+
+	// fmt.Printf("objects: %v\n", objects)
+	for _, v := range objectIds {
+		object, err := anytypeClient.RequestObject(targetSpaceId, v)
+		if err != nil {
+			os.Exit(1)
+		}
+
+		fmt.Printf("%s\n", object.Object.ID)
+	}
 
 	// var spaceIds = make(map[string]string)
 	// for _, v := range spaces.Objects {

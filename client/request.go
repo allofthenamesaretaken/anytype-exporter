@@ -144,7 +144,7 @@ authentication and header configuration while keeping the endpoint-specific
 methods small and readable.
 */
 
-func (clientRequest *AnytypeRequest) get(method string, path string, queryParams *QueryParams) (*http.Request, error) {
+func (clientRequest *AnytypeRequest) get(path string, queryParams *QueryParams) (*http.Request, error) {
 	rawUrl := clientRequest.anytypeBaseUrl + path
 
 	requestUrl, err := url.Parse(rawUrl)
@@ -164,7 +164,7 @@ func (clientRequest *AnytypeRequest) get(method string, path string, queryParams
 		requestUrl.RawQuery = queries.Encode()
 	}
 
-	request, err := http.NewRequest(method, requestUrl.String(), nil)
+	request, err := http.NewRequest("GET", requestUrl.String(), nil)
 	if err != nil {
 		clientRequest.logger.Error("Failed to create new request", err)
 		return nil, err
@@ -194,7 +194,12 @@ spaces should be traversed when collecting objects for export.
 */
 
 func (clientRequest *AnytypeRequest) GetSpaces(queryParams *QueryParams) (*http.Request, error) {
-	return clientRequest.get("GET", "/v1/spaces", queryParams)
+	return clientRequest.get("/v1/spaces", queryParams)
+}
+
+func (clientRequest *AnytypeRequest) GetSpace(spaceId string) (*http.Request, error) {
+	path := fmt.Sprintf("/v1/spaces/%s", spaceId)
+	return clientRequest.get(path, nil)
 }
 
 /*
@@ -216,5 +221,10 @@ processed downstream.
 
 func (clientRequest *AnytypeRequest) GetObjects(spaceId string, queryParams *QueryParams) (*http.Request, error) {
 	path := fmt.Sprintf("/v1/spaces/%s/objects", spaceId)
-	return clientRequest.get("GET", path, queryParams)
+	return clientRequest.get(path, queryParams)
+}
+
+func (clientRequest *AnytypeRequest) GetObject(spaceId string, objectId string) (*http.Request, error) {
+	path := fmt.Sprintf("/v1/spaces/%s/objects/%s", spaceId, objectId)
+	return clientRequest.get(path, nil)
 }
