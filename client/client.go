@@ -5,24 +5,29 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/allofthenamesaretaken/anytype-exporter/utils"
 )
 
 type AnytypeClient struct {
-	self    *http.Client
-	request *AnytypeRequest
-	logger  *utils.Logger
+	target   string
+	self     *http.Client
+	request  *AnytypeRequest
+	exporter *AnytypeExporter
+	logger   *utils.Logger
 }
 
 func NewAnytypeClient(logger *utils.Logger) *AnytypeClient {
 	return &AnytypeClient{
+		target: os.Getenv("ANYTYPE_TARGET_SPACE"),
 		self: &http.Client{
 			Timeout: time.Second * 10,
 		},
-		request: NewAnytypeRequest(logger),
-		logger:  logger,
+		request:  NewAnytypeRequest(logger),
+		exporter: NewAnytypeExporter(logger),
+		logger:   logger,
 	}
 }
 
@@ -81,4 +86,60 @@ func (client *AnytypeClient) RequestObjects(spaceId string, queryParams *QueryPa
 func (client *AnytypeClient) RequestObject(spaceId string, objectId string) (*ObjectResponse, error) {
 	request, err := client.request.GetObject(spaceId, objectId)
 	return JSONRequest[ObjectResponse](client, request, err)
+}
+
+func (client *AnytypeClient) getTargetSpaceId() (*string, error) {
+	// WARN: pagination surfing has not been implemented yet
+	params := NewQueryParams().WithOffset(0).WithLimit(10)
+	spacesResponse, err := client.RequestSpaces(params)
+	if err != nil {
+		return nil, err
+	}
+
+	var targetSpaceId string
+	for _, v := range spacesResponse.Data {
+		if v.Name == client.target {
+			targetSpaceId = v.ID
+			return &targetSpaceId, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func (client *AnytypeClient) ExportTargetObjects() error {
+	var targetSpaceId string
+	pTargetSpaceId, err := client.getTargetSpaceId()
+	if err != nil {
+		return err
+	}
+	if pTargetSpaceId == nil {
+		msg := fmt.Sprintf("Target space %s does not exist", client.target)
+		err = errors.New(msg)
+		client.logger.Error(msg, err)
+		return err
+	} else {
+		targetSpaceId = *pTargetSpaceId
+	}
+
+	// WARN: pagination surfing has not been implemented yet
+	params := NewQueryParams().WithOffset(0).WithLimit(10)
+	objectsResponse, err := client.RequestObjects(targetSpaceId, params)
+	if err != nil {
+		return err
+	}
+
+	for _, v := range objectsResponse.Data {
+		objectResponse, err := client.RequestObject(targetSpaceId, v.ID)
+		if err != nil {
+			return err
+		}
+
+		err = client.exporter.ExportObject(objectResponse.Object)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
