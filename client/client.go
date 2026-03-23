@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/allofthenamesaretaken/anytype-exporter/utils"
@@ -32,7 +33,7 @@ func NewAnytypeClient(logger *utils.Logger) *AnytypeClient {
 }
 
 type JSONResponse interface {
-	SpacesResponse | SpaceResponse | ObjectsResponse | ObjectResponse
+	SpacesResponse | SpaceResponse | ObjectsResponse | ObjectResponse | PropertiesResponse | PropertyResponse | TagsResponse | TagResponse
 }
 
 func JSONRequest[T JSONResponse](client *AnytypeClient, request *http.Request, err error) (*T, error) {
@@ -88,58 +89,151 @@ func (client *AnytypeClient) RequestObject(spaceId string, objectId string) (*Ob
 	return JSONRequest[ObjectResponse](client, request, err)
 }
 
-func (client *AnytypeClient) getTargetSpaceId() (*string, error) {
-	// WARN: pagination surfing has not been implemented yet
+func (client *AnytypeClient) RequestProperties(spaceId string, queryParams *QueryParams) (*PropertiesResponse, error) {
+	request, err := client.request.GetProperties(spaceId, queryParams)
+	return JSONRequest[PropertiesResponse](client, request, err)
+}
+
+func (client *AnytypeClient) RequestProperty(spaceId string, propertyId string) (*PropertyResponse, error) {
+	request, err := client.request.GetProperty(spaceId, propertyId)
+	return JSONRequest[PropertyResponse](client, request, err)
+}
+
+func (client *AnytypeClient) RequestTags(spaceId string, propertyId string) (*TagsResponse, error) {
+	request, err := client.request.GetTags(spaceId, propertyId)
+	return JSONRequest[TagsResponse](client, request, err)
+}
+
+func (client *AnytypeClient) RequestTag(spaceId string, propertyId string, tagId string) (*TagResponse, error) {
+	request, err := client.request.GetTag(spaceId, propertyId, tagId)
+	return JSONRequest[TagResponse](client, request, err)
+}
+
+func (client *AnytypeClient) objectIsPrivate(object Object) (bool, error) {
+	var tagPropertyId string
+	for _, property := range object.Properties {
+		if property.Key == "tag" {
+			tagPropertyId = property.ID
+		}
+	}
+
+	if tagPropertyId == "" {
+		return false, nil
+	}
+
+	tagsResponse, err := client.RequestTags(object.SpaceID, tagPropertyId)
+	if err != nil {
+		return false, err
+	}
+
+	for _, tag := range tagsResponse.Data {
+		if strings.ToLower(tag.Name) == "private" {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func (client *AnytypeClient) objectIsEmpty(object Object) bool {
+	client.logger.Warn("objectIsEmpty is an experimental utility that only checks for empty name fields")
+	trimmedName := strings.Trim(object.Name, " ")
+	return trimmedName == ""
+}
+
+func (client *AnytypeClient) filterPrivateObjects(objects []Object) []Object {
+	var filteredObjects []Object
+	for _, object := range objects {
+		isPrivate, err := client.objectIsPrivate(object)
+		if err != nil {
+			client.logger.Error("Non fatal: failed to check if object is private", err)
+			continue
+		}
+
+		if !isPrivate {
+			filteredObjects = append(filteredObjects, object)
+		}
+	}
+
+	return filteredObjects
+}
+
+func (client *AnytypeClient) filterEmptyObjects(objects []Object) []Object {
+	var filteredObjects []Object
+	for _, object := range objects {
+		isEmpty := client.objectIsEmpty(object)
+
+		if !isEmpty {
+			filteredObjects = append(filteredObjects, object)
+		}
+	}
+
+	return filteredObjects
+}
+
+func (client *AnytypeClient) getTargetSpaceId() (string, error) {
 	params := NewQueryParams().WithOffset(0).WithLimit(10)
 	spacesResponse, err := client.RequestSpaces(params)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	var targetSpaceId string
 	for _, v := range spacesResponse.Data {
 		if v.Name == client.target {
 			targetSpaceId = v.ID
-			return &targetSpaceId, nil
+			return targetSpaceId, nil
 		}
 	}
 
-	return nil, nil
+	msg := fmt.Sprintf("Target space %s does not exist", client.target)
+	err = errors.New(msg)
+	client.logger.Error(msg, err)
+	return "", err
 }
 
-func (client *AnytypeClient) ExportTargetObjects() error {
-	var targetSpaceId string
-	pTargetSpaceId, err := client.getTargetSpaceId()
+func (client *AnytypeClient) getTargetSpaceObjects() ([]Object, error) {
+	targetSpaceId, err := client.getTargetSpaceId()
 	if err != nil {
-		return err
-	}
-	if pTargetSpaceId == nil {
-		msg := fmt.Sprintf("Target space %s does not exist", client.target)
-		err = errors.New(msg)
-		client.logger.Error(msg, err)
-		return err
-	} else {
-		targetSpaceId = *pTargetSpaceId
+		return nil, err
 	}
 
-	// WARN: pagination surfing has not been implemented yet
+	client.logger.Warn("RequestObjects has been limited to requesting 10 objects")
+	client.logger.Warn("Pagination surfing has not been implemented yet")
 	params := NewQueryParams().WithOffset(0).WithLimit(10)
 	objectsResponse, err := client.RequestObjects(targetSpaceId, params)
 	if err != nil {
+		return nil, err
+	}
+
+	if objectsResponse.Pagination.HasMore {
+		client.logger.Error("Non Fatal: The number of pages has exceeded single pagination limits", nil)
+	}
+
+	var objects []Object
+	for _, object := range objectsResponse.Data {
+		objectResponse, err := client.RequestObject(targetSpaceId, object.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		objects = append(objects, objectResponse.Object)
+	}
+
+	return objects, nil
+}
+
+func (client *AnytypeClient) ExportTargetObjects() error {
+	objects, err := client.getTargetSpaceObjects()
+	if err != nil {
 		return err
 	}
 
-	for _, v := range objectsResponse.Data {
-		objectResponse, err := client.RequestObject(targetSpaceId, v.ID)
-		if err != nil {
-			return err
-		}
-
-		err = client.exporter.ExportObject(objectResponse.Object)
-		if err != nil {
-			return err
-		}
+	filteredObjects := client.filterEmptyObjects(objects)
+	filteredObjects = client.filterPrivateObjects(filteredObjects)
+	err = client.exporter.ExportObjects(filteredObjects)
+	if err != nil {
+		return err
 	}
-
 	return nil
 }

@@ -10,7 +10,7 @@ import (
 )
 
 /*
- NOTE: QueryParams
+	NOTE: QueryParams
 
 QueryParams provides a small builder-style helper for constructing optional
 query parameters used by paginated Anytype list endpoints.
@@ -37,7 +37,7 @@ type QueryParams struct {
 }
 
 /*
- NOTE: AnytypeRequest client
+	NOTE: AnytypeRequest client
 
 AnytypeRequest acts as a lightweight request builder for interacting with the
 Anytype HTTP API.
@@ -51,9 +51,9 @@ The struct encapsulates:
 
 Configuration is sourced from environment variables:
 
-  ANYTYPE_BASE_URL   → base API endpoint
-  ANYTYPE_API_KEY    → bearer token used for authentication
-  ANYTYPE_VERSION    → API version header required by Anytype
+	ANYTYPE_BASE_URL   → base API endpoint
+	ANYTYPE_API_KEY    → bearer token used for authentication
+	ANYTYPE_VERSION    → API version header required by Anytype
 
 This client intentionally focuses only on request construction. It does not
 execute HTTP requests or perform response decoding. Those responsibilities are
@@ -70,7 +70,7 @@ type AnytypeRequest struct {
 }
 
 /*
- NOTE: QueryParams constructor
+	NOTE: QueryParams constructor
 
 Creates an empty QueryParams instance used to build optional query parameters
 for paginated endpoints.
@@ -84,15 +84,15 @@ func NewQueryParams() *QueryParams {
 }
 
 /*
- NOTE: AnytypeRequest constructor
+	NOTE: AnytypeRequest constructor
 
 Creates a new AnytypeRequest instance using environment-based configuration.
 
 Expected environment variables:
 
-  ANYTYPE_BASE_URL   → base API endpoint (for example https://api.anytype.io)
-  ANYTYPE_API_KEY    → bearer token used for authentication
-  ANYTYPE_VERSION    → API version header required by Anytype
+	ANYTYPE_BASE_URL   → base API endpoint (for example https://api.anytype.io)
+	ANYTYPE_API_KEY    → bearer token used for authentication
+	ANYTYPE_VERSION    → API version header required by Anytype
 
 No validation is performed at construction time. It is assumed that the
 environment is correctly configured before the exporter runs.
@@ -107,15 +107,15 @@ func NewAnytypeRequest(logger *utils.Logger) *AnytypeRequest {
 }
 
 /*
- NOTE: QueryParams builder methods
+	NOTE: QueryParams builder methods
 
 WithOffset and WithLimit implement a small fluent-style builder pattern.
 
 Example usage:
 
-  params := NewQueryParams().
-      WithOffset(0).
-      WithLimit(100)
+	params := NewQueryParams().
+	    WithOffset(0).
+	    WithLimit(100)
 
 This pattern improves readability when constructing optional query parameters
 and keeps pagination logic concise when iterating through API responses.
@@ -131,7 +131,7 @@ func (queryParams *QueryParams) WithLimit(limit uint) *QueryParams {
 }
 
 /*
- NOTE: HTTP request construction
+	NOTE: HTTP request construction
 
 The internal get() helper builds a fully configured HTTP request for the
 Anytype API.
@@ -145,9 +145,9 @@ Responsibilities:
 
 Headers applied:
 
-  Authorization     → Bearer API key
-  Accept            → application/json
-  Anytype-Version   → requested API version
+	Authorization     → Bearer API key
+	Accept            → application/json
+	Anytype-Version   → requested API version
 
 Centralizing request construction ensures that all endpoints use the same
 authentication and header configuration while keeping the endpoint-specific
@@ -207,11 +207,11 @@ func (clientRequest *AnytypeRequest) GetSpaces(queryParams *QueryParams) (*http.
 }
 
 /*
- NOTE: Get space endpoint
+	NOTE: Get space endpoint
 
 GetSpace constructs a request for the Anytype endpoint:
 
-  GET /v1/spaces/{space_id}
+	GET /v1/spaces/{space_id}
 
 This endpoint returns a single space with richer metadata than the
 list-spaces response.
@@ -226,11 +226,11 @@ func (clientRequest *AnytypeRequest) GetSpace(spaceId string) (*http.Request, er
 }
 
 /*
- NOTE: List objects endpoint
+	NOTE: List objects endpoint
 
 GetObjects constructs a request for the Anytype endpoint:
 
-  GET /v1/spaces/{space_id}/objects
+	GET /v1/spaces/{space_id}/objects
 
 This endpoint returns the objects contained within a specific space.
 
@@ -247,11 +247,11 @@ func (clientRequest *AnytypeRequest) GetObjects(spaceId string, queryParams *Que
 }
 
 /*
- NOTE: Get object endpoint
+	NOTE: Get object endpoint
 
 GetObject constructs a request for the Anytype endpoint:
 
-  GET /v1/spaces/{space_id}/objects/{object_id}
+	GET /v1/spaces/{space_id}/objects/{object_id}
 
 This endpoint returns a single object, which may include a more complete
 representation than the list-objects response.
@@ -262,5 +262,25 @@ processing.
 */
 func (clientRequest *AnytypeRequest) GetObject(spaceId string, objectId string) (*http.Request, error) {
 	path := fmt.Sprintf("/v1/spaces/%s/objects/%s", spaceId, objectId)
+	return clientRequest.get(path, nil)
+}
+
+func (clientRequest *AnytypeRequest) GetProperties(spaceId string, queryParams *QueryParams) (*http.Request, error) {
+	path := fmt.Sprintf("/v1/spaces/%s/properties", spaceId)
+	return clientRequest.get(path, queryParams)
+}
+
+func (clientRequest *AnytypeRequest) GetProperty(spaceId string, propertyId string) (*http.Request, error) {
+	path := fmt.Sprintf("/v1/spaces/%s/properties/%s", spaceId, propertyId)
+	return clientRequest.get(path, nil)
+}
+
+func (clientRequest *AnytypeRequest) GetTags(spaceId string, propertyId string) (*http.Request, error) {
+	path := fmt.Sprintf("/v1/spaces/%s/properties/%s/tags", spaceId, propertyId)
+	return clientRequest.get(path, nil)
+}
+
+func (clientRequest *AnytypeRequest) GetTag(spaceId string, propertyId string, tagId string) (*http.Request, error) {
+	path := fmt.Sprintf("/v1/spaces/%s/properties/%s/tags/%s", spaceId, propertyId, tagId)
 	return clientRequest.get(path, nil)
 }

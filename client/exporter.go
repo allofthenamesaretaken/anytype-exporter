@@ -20,35 +20,9 @@ func NewAnytypeExporter(logger *utils.Logger) *AnytypeExporter {
 	}
 }
 
-// func (exporter *AnytypeExporter) gobEncoder(clob string) ([]byte, error) {
-// 	var buffer bytes.Buffer
-//
-// 	err := gob.NewEncoder(&buffer).Encode(clob)
-// 	if err != nil {
-// 		exporter.logger.Error("Failed to encode clob string into byte slice", err)
-// 		return nil, err
-// 	}
-//
-// 	bytes := buffer.Bytes()
-//
-// 	return bytes, nil
-// }
-
-func (exporter *AnytypeExporter) JSONMarshal(data any) ([]byte, error) {
-	var bytes []byte
-
-	bytes, err := json.MarshalIndent(data, "", " ")
-	if err != nil {
-		exporter.logger.Error("Failed to marhsal json struct into byte slice", err)
-		return nil, err
-	}
-
-	return bytes, nil
-}
-
-func (exporter *AnytypeExporter) ensureDir() error {
-	if _, err := os.Stat(exporter.exportDir); os.IsNotExist(err) {
-		err := os.Mkdir(exporter.exportDir, 0750)
+func (exporter *AnytypeExporter) ensureDir(path string) error {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		err := os.Mkdir(path, 0750)
 		if err != nil {
 			exporter.logger.Error("Failed to make export dir", err)
 			return err
@@ -68,35 +42,61 @@ func (exporter *AnytypeExporter) writeFile(path string, bytes []byte) error {
 	return nil
 }
 
-func (exporter *AnytypeExporter) ExportObject(object Object) error {
-	err := exporter.ensureDir()
+func (exporter *AnytypeExporter) exportMd(exportDir string, object Object) error {
+	exportPath := exportDir + "/object.md"
+	bytes := []byte(object.Markdown)
+	err := exporter.writeFile(exportPath, bytes)
 	if err != nil {
 		return err
 	}
+	return nil
+}
 
-	var exportPath string
-	var bytes []byte
-
-	exportPath = exporter.exportDir + fmt.Sprintf("/object-%s.md", object.Name)
-	bytes = []byte(object.Markdown)
-
-	err = exporter.writeFile(exportPath, bytes)
-	if err != nil {
-		return err
-	}
-
+func (exporter *AnytypeExporter) exportJSON(exportDir string, object Object) error {
+	exportPath := exportDir + "/object.meta.json"
 	tmp := Object(object)
 	tmp.Markdown = ""
+	bytes, err := json.MarshalIndent(tmp, "", " ")
+	if err != nil {
+		exporter.logger.Error("Failed to marhsal json struct into byte slice", err)
+		return err
+	}
+	err = exporter.writeFile(exportPath, bytes)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
-	exportPath = exporter.exportDir + fmt.Sprintf("/object-%s.json", object.Name)
-	bytes, err = exporter.JSONMarshal(tmp)
+func (exporter *AnytypeExporter) exportObject(object Object) error {
+	targetDir := fmt.Sprintf("/%s", object.Name)
+	objectExportDir := exporter.exportDir + targetDir
+	err := exporter.ensureDir(objectExportDir)
+
+	err = exporter.exportMd(objectExportDir, object)
 	if err != nil {
 		return err
 	}
 
-	err = exporter.writeFile(exportPath, bytes)
+	err = exporter.exportJSON(objectExportDir, object)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (exporter *AnytypeExporter) ExportObjects(objects []Object) error {
+	err := exporter.ensureDir(exporter.exportDir)
+	if err != nil {
+		return err
+	}
+
+	for _, object := range objects {
+		err := exporter.exportObject(object)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

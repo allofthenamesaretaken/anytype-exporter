@@ -126,6 +126,24 @@ type ObjectResponse struct {
 	Object Object `json:"object"`
 }
 
+type PropertiesResponse struct {
+	Data       []Property `json:"data"`
+	Pagination Pagination `json:"pagination"`
+}
+
+type PropertyResponse struct {
+	Property Property `json:"property"`
+}
+
+type TagsResponse struct {
+	Data       []Tag      `json:"data"`
+	Pagination Pagination `json:"pagination"`
+}
+
+type TagResponse struct {
+	Tag Tag `json:"tag"`
+}
+
 /*
  NOTE: Pagination
 
@@ -166,6 +184,7 @@ const (
 	ObjectTypeSpace  ObjectType = "space"
 	ObjectTypeChat   ObjectType = "chat"
 	ObjectTypeObject ObjectType = "object"
+	ObjectTypeTag    ObjectType = "tag"
 )
 
 /*
@@ -232,14 +251,15 @@ beyond the extracted text, and other presentation-oriented fields are not
 currently exported.
 */
 type Object struct {
-	Archived bool       `json:"archived"`
-	ID       string     `json:"id"`
-	Layout   string     `json:"layout"`
-	Markdown string     `json:"markdown"`
-	Name     string     `json:"name"`
-	Object   ObjectType `json:"object"`
-	Snippet  string     `json:"snippet"`
-	SpaceID  string     `json:"space_id"`
+	Archived   bool       `json:"archived"`
+	ID         string     `json:"id"`
+	Layout     string     `json:"layout"`
+	Markdown   string     `json:"markdown"`
+	Name       string     `json:"name"`
+	Object     ObjectType `json:"object"`
+	Snippet    string     `json:"snippet"`
+	SpaceID    string     `json:"space_id"`
+	Properties []Property `json:"properties"`
 
 	// Type       *Type      `json:"type"`
 	// Properties []Property `json:"properties"`
@@ -373,17 +393,25 @@ If future use cases require richer structured metadata, property support can
 be added and mapped into frontmatter, JSON metadata, or other downstream
 representations.
 */
-// type Property struct {
-// 	Format string `json:"format"`
-// 	ID     string `json:"id"`
-// 	Key    string `json:"key"`
-// 	Name   string `json:"name"`
-// 	Object string `json:"object"`
-//
-// 	Text     string  `json:"text,omitempty"`
-// 	Number   float64 `json:"number,omitempty"`
-// 	Checkbox bool    `json:"checkbox,omitempty"`
-// 	URL      string  `json:"url,omitempty"`
-// 	Email    string  `json:"email,omitempty"`
-// 	Phone    string  `json:"phone,omitempty"`
-// }
+type Property struct {
+	Format string `json:"format"`
+	ID     string `json:"id"`
+	Key    string `json:"key"`
+	Name   string `json:"name"`
+	Object string `json:"object"`
+	//
+	// 	Text     string  `json:"text,omitempty"`
+	// 	Number   float64 `json:"number,omitempty"`
+	// 	Checkbox bool    `json:"checkbox,omitempty"`
+	// 	URL      string  `json:"url,omitempty"`
+	// 	Email    string  `json:"email,omitempty"`
+	// 	Phone    string  `json:"phone,omitempty"`
+}
+
+type Tag struct {
+	Color  string     `json:"color"`
+	ID     string     `json:"id"`
+	Key    string     `json:"key"`
+	Name   string     `json:"name"`
+	Object ObjectType `json:"object"`
+}
